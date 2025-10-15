@@ -18,9 +18,13 @@ library(tidyverse)
 
 Link to your forked GH repository:
 
+https://github.com/AFhmc/CLES131-module3-redlining#
+
 ### Use of Quarto
 
 Link to your .qmd file:
+
+https://github.com/AFhmc/CLES131-module3-redlining#
 
 # Ecological consequences of redlining
 
