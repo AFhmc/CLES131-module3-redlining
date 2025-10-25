@@ -100,23 +100,23 @@ For each city, locate the 10m resolution files for the B04 and B08 bands along w
 Use the terra package and the `rast()` function to import the two bands, which are reported as digital numbers. 
 Combine to calculate NDVI ($ (NIR - R) / (NIR + R)$) and display a quick plot of your first city. 
 ```{r}
-city <- "Phoenix"
+city <- "Baltimore"
 #Note that I renamed all the files to Band04/Band08 to make this loopable
-filepath04 <- paste("data", city, "Band04.jp2", sep = "/")
-filepath08 <- paste("data", city, "Band08.jp2", sep = "/")
+Baltimorefilepath04 <- paste("data", city, "Band04.jp2", sep = "/")
+Baltimorefilepath08 <- paste("data", city, "Band08.jp2", sep = "/")
 
 
 #B8 is NIR, B4 is Red
 
-redBand <- terra::rast(filepath04)
-NIRband <- terra::rast(filepath08)
+BaltimoreredBand <- terra::rast(filepath04)
+BaltimoreNIRband <- terra::rast(filepath08)
 
-NDVI = (NIRband - redBand)/(NIRband + redBand)
+BaltimoreNDVI = (NIRband - redBand)/(NIRband + redBand)
 
 ```
 ```{r}
 ggplot()+
-  geom_spatraster(data = NDVI)+
+  geom_spatraster(data = BaltimoreNDVI)+
   scale_fill_gradient2(low = "#befca4",
                        mid = "#7afc46",
                        high = "#1b5104",
@@ -157,6 +157,18 @@ for (city in c("Baltimore", "Birmingham", "Indianapolis", "Minneapolis", "Phoeni
 
 ### Q4 (1 point)
 Do the rasters and polygons share the same coordinate reference system? If not, project both into the same CRS and justify your choice. 
+```{r}
+#look at the polygon coords:
+st_crs(baltimore_redlining)
+```
+```{r}
+#look at the raster coords:
+st_crs(BaltimoreNDVI)
+```
+
+They both use the WGS 84 overall system, but the NDVI uses a modification of that coordinate system to make the projection better for the particular region that it is in. So, I will convert both to use the "WGS 84 / UTM zone 12N" coordinates of the NDVI because that should be better for the particularities of the location.
+
+
 
 ### Q5 (1 points)
 Overlay the projected vector file onto the projected NDVI for a single city using `tidyterra::geom_spatraster()` in addition to `geom_sf()`. Adjust the color scales and add a scale bar to approximate Fig. 2a of Schell et al. 2020. 
