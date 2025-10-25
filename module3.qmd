@@ -3,7 +3,7 @@ title: "Module 3: Redlining"
 format: pdf
 editor: source
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 ```{r}
@@ -51,6 +51,31 @@ Then, go back to the home page of [Mapping Inequality](https://dsl.richmond.edu/
 Import the geojson file into your R environment with the `st_read`()` function from sf. Check the structure of this object and see that it is a special type of data frame, allowing it to be manipulated with many of the functions you already know, including ggplot. 
 
 Make a quick plot of your first city showing the "grade" in color using ggplot syntax and `geom_sf()`. Select a color scheme that better comports with redlining. 
+
+```{r}
+baltimore_redlining <- st_read("data/Baltimore/geojson.json")
+ggplot()+
+  geom_sf(data = baltimore_redlining, linewidth = 1, mapping = aes(fill = grade)) + theme_classic() +
+  scale_fill_manual(values = c("A" = "#76a865",
+                       "B" =  "#7cb5bd",
+                       "C" = "#ffff00",
+                       "D" = "#d9838d",
+                       na.value = "grey")) + 
+  labs(title= "Baltimore Redlining Map")
+```
+
+(Alternate version with no fill and colored outlines)
+```{r}
+baltimore_redlining <- st_read("data/Baltimore/geojson.json")
+ggplot()+
+  geom_sf(data = baltimore_redlining, linewidth = 1.5, fill = "white", mapping = aes(color = grade)) + theme_classic() +
+  scale_color_manual(values = c("A" = "#76a865",
+                       "B" =  "#7cb5bd",
+                       "C" = "#ffff00",
+                       "D" = "#d9838d",
+                       na.value = "grey")) + 
+  labs(title= "Baltimore Redlining Map")
+```
 
 ## The raster data
 
