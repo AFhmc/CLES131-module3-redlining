@@ -108,10 +108,10 @@ Baltimorefilepath08 <- paste("data", city, "Band08.jp2", sep = "/")
 
 #B8 is NIR, B4 is Red
 
-BaltimoreredBand <- terra::rast(filepath04)
-BaltimoreNIRband <- terra::rast(filepath08)
+BaltimoreredBand <- terra::rast(Baltimorefilepath04)
+BaltimoreNIRband <- terra::rast(Baltimorefilepath08)
 
-BaltimoreNDVI = (NIRband - redBand)/(NIRband + redBand)
+BaltimoreNDVI = (BaltimoreNIRband - BaltimoreredBand)/(BaltimoreNIRband + BaltimoreredBand)
 
 ```
 ```{r}
@@ -166,20 +166,161 @@ st_crs(baltimore_redlining)
 st_crs(BaltimoreNDVI)
 ```
 
-They both use the WGS 84 overall system, but the NDVI uses a modification of that coordinate system to make the projection better for the particular region that it is in. So, I will convert both to use the "WGS 84 / UTM zone 12N" coordinates of the NDVI because that should be better for the particularities of the location.
+They both use the WGS 84 overall system, but the NDVI uses a modification of that coordinate system to make the projection better for the particular region that it is in. So, I will convert both to use the "WGS 84 / UTM zone 18N" coordinates of the NDVI because that should be better for the particularities of the location.
 
 
+```{r}
+transformed_baltimore_redlining <- st_transform(baltimore_redlining, st_crs(BaltimoreNDVI))
+transformed_baltimore_redlining
+```
 
 ### Q5 (1 points)
 Overlay the projected vector file onto the projected NDVI for a single city using `tidyterra::geom_spatraster()` in addition to `geom_sf()`. Adjust the color scales and add a scale bar to approximate Fig. 2a of Schell et al. 2020. 
 
+```{r}
+baltimorePoly <- terra::project(terra::vect("data/Baltimore/geojson.json"), BaltimoreNDVI)
+BaltimoreNDVI |> terra::mask(baltimorePoly)
+```
+```{r}
+#install.packages("ggspatial")
+library(ggspatial) # to get scalebar
+```
+
+Sadly, I cannot figure out how to to get the background landscape features (streets, waterbodies, etc) in this.
+```{r}
+#cut the NDVI data down to size
+cutBaltimoreNDVI <- BaltimoreNDVI |> terra::crop(transformed_baltimore_redlining)
+#and then cut to only within the polygons
+baltimorePoly <- terra::project(terra::vect("data/Baltimore/geojson.json"), BaltimoreNDVI)
+cutBaltimoreNDVI <-cutBaltimoreNDVI |> terra::mask(baltimorePoly)
+
+ggplot()+
+  geom_spatraster(data = cutBaltimoreNDVI)+
+  scale_fill_gradient2(low = "grey",
+                       mid = "white",
+                       high = "#019123",
+                       na.value = NA, limits = c(-1,1)) + theme_classic() +
+  labs(title = "Baltimore NDVI with Redlining", fill = "NDVI", color = "Redlining Grade")+
+  geom_sf(data = transformed_baltimore_redlining, linewidth = 1, fill = NA, mapping = aes(color = grade)) + theme_classic() +
+  scale_color_manual(values = c("A" = "green",
+                       "B" =  "#02afce",
+                       "C" = "orange",
+                       "D" = "red",
+                       na.value = "grey")) +
+  annotation_scale()
+```
+
+
+
 ### Q6 (1 point)
 Repeat the above for all 5 cities and add the city name. Explore the `cowplot` or `patchwork` packages to create a multi-panel figure. 
+
+```{r}
+#Make loop, save plots
+library(patchwork)
+complete_plot <- ggplot()
+
+for (city in c("Baltimore", "Birmingham", "Indianapolis", "Minneapolis", "Phoenix")) {
+  #Get NDVI data
+  filepath04 <- paste("data", city, "Band04.jp2", sep = "/")
+  filepath08 <- paste("data", city, "Band08.jp2", sep = "/")
+  
+  
+  #B8 is NIR, B4 is Red
+  
+  redBand <- terra::rast(filepath04)
+  NIRband <- terra::rast(filepath08)
+  
+  NDVI = (NIRband - redBand)/(NIRband + redBand)
+  
+  #Get Redlining Data (both poly and st)
+  filepathRedlining <- paste("data", city, "geojson.json", sep = "/")
+  st_redlining <- st_read(filepathRedlining) |> st_transform(st_crs(NDVI))
+  poly_redlining <- terra::project(terra::vect(filepathRedlining), NDVI)
+  cutNDVI <- NDVI |> terra::crop(st_redlining)
+  polyNDVI <- cutNDVI |> terra::mask(poly_redlining)
+  
+  
+  #plot
+  plot <- ggplot()+
+  geom_spatraster(data = polyNDVI)+
+  scale_fill_gradient2(low = "grey",
+                       mid = "white",
+                       high = "#019123",
+                       na.value = NA, limits = c(-1,1)) + theme_classic() +
+  labs(title = paste(city, " NDVI with Redlining"), fill = "NDVI", color = "Redlining Grade")+
+  geom_sf(data = st_redlining, linewidth = 1, fill = NA, mapping = aes(color = grade)) + theme_classic() +
+  scale_color_manual(values = c("A" = "green",
+                       "B" =  "#02afce",
+                       "C" = "orange",
+                       "D" = "red",
+                       na.value = "grey")) +
+  annotation_scale() + 
+    theme(legend.direction = "vertical", legend.box = "horizontal")
+  
+  complete_plot <- complete_plot + plot
+  #also show each plot individually
+  print(plot)
+}
+
+
+```
+
+```{r}
+#Plot everything together
+# I use the png because it was the only way I could figure out to set the image size
+png(filename="Q6plot.png", width=800, height=900)
+complete_plot+ plot_layout(ncol = 2, widths = unit(80, "mm"), heights = unit(80, "mm"))
+```
+
+```{r}
+# show the png I just saved
+library(png)
+img <- readPNG("Q6plot.png")
+plot(grid::grid.raster(img))
+```
+
 
 ### Q7 (2 points)
 Now, let's examine the relationship between redlining and NDVI. Temporarily re-read in your redlining polygons using `terra:::vect()`. You can use `terra:extract()` on these temporary polygons within `mutate()` on your original polygons read in with `read_sf()`. Because the output of `terra::extract()` is a data.frame, `dplyr::pull()` can be helpful. 
 
 Extract the mean, median, and central 95% quantile of NDVI from each delineated neighborhood while retaining the identity of the city. Perform your choice of at least two exploratory data visualizations utilizing different variables to evaluate this relationship and examine whether it differs between cities. 
+
+```{r}
+#get baltimore polygons
+baltimorePoly <- terra::project(terra::vect("data/Baltimore/geojson.json"), BaltimoreNDVI)
+
+#add NDVI data to redlining polygons
+Baltimore_redlining_NDVI <- transformed_baltimore_redlining
+neighborhood_mean_NDVI <- pull(terra::extract(BaltimoreNDVI, baltimorePoly, fun = mean), Band08)
+
+neighborhood_median_NDVI <- pull(terra::extract(BaltimoreNDVI, baltimorePoly, fun = median), Band08)
+
+
+```
+
+
+```{r}
+meanNDVI <- rep(0, nrow(baltimorePoly))
+
+medianNDVI <- rep(0, nrow(baltimorePoly))
+
+bottomQuantileNDVI <- rep(0, nrow(baltimorePoly))
+topQuantileNDVI <- rep(0, nrow(baltimorePoly))
+
+for (index in 1:nrow(baltimorePoly)) {
+  neighborhood_NDVI <- pull(terra::extract(BaltimoreNDVI, baltimorePoly[index,]), Band08)
+  meanNDVI[index] <- mean(neighborhood_NDVI)
+  medianNDVI[index] <- median(neighborhood_NDVI)
+  quantiles <- quantile(neighborhood_NDVI, probs = c(0.025, 0.975), names = FALSE)
+  bottomQuantileNDVI[index] <- quantiles[1]
+  topQuantileNDVI[index] <- quantiles[2]
+  
+}
+
+Baltimore_redlining_NDVI <- Baltimore_redlining_NDVI |> 
+  mutate("NDVI mean" = meanNDVI, "NDVI median" = medianNDVI, "NDVI 2.5% Quantile"= bottomQuantileNDVI,"NDVI 97.5% Quantile"= topQuantileNDVI)
+```
 
 ### Bonus 2 (1 point)
 Perform a statistical test to support your visual analysis above. 
